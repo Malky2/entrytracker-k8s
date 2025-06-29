@@ -1,0 +1,62 @@
+name: CI/CD Pipeline for EntryTracker
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📦 Checkout repository
+        uses: actions/checkout@v3
+
+      - name: 🔐 Login to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: 🛠️ Build and Push Docker image
+        run: |
+          IMAGE_TAG=entrytracker:$(date +%Y%m%d)-${{ github.sha }}
+          docker build -t $IMAGE_TAG .
+          docker tag $IMAGE_TAG ${{ secrets.DOCKERHUB_USERNAME }}/entrytracker:latest
+          docker push ${{ secrets.DOCKERHUB_USERNAME }}/entrytracker:latest
+
+      - name: 🧪 Create kind cluster
+        uses: helm/kind-action@v1.7.0
+
+      - name: 📥 Apply MySQL Secret
+        run: kubectl apply -f k8s/mysql-secret.yaml
+
+      - name: 🧱 Deploy MySQL StatefulSet + Services
+        run: |
+          kubectl apply -f k8s/mysql-service.yaml
+          kubectl apply -f k8s/mysql-statefulset.yaml
+
+      - name: ⏳ Wait for MySQL to be ready
+        run: kubectl wait --for=condition=ready pod/mysql-0 --timeout=300s
+
+      - name: ⚙️ Apply EntryTracker ConfigMap
+        run: kubectl apply -f k8s/entrytracker-configmap.yaml
+
+      - name: 🚀 Deploy EntryTracker app
+        run: |
+          # replace placeholder image in deployment
+          sed "s|IMAGE_PLACEHOLDER|${{ secrets.DOCKERHUB_USERNAME }}/entrytracker:latest|g" k8s/entrytracker-deployment.yaml | kubectl apply -f -
+
+      - name: 🌐 Apply EntryTracker Service
+        run: kubectl apply -f k8s/entrytracker-service.yaml
+
+      - name: ✅ Verify EntryTracker is running
+        run: |
+          kubectl rollout status deployment/entrytracker --timeout=180s
+          kubectl get pods
+          kubectl get services
+
+      - name: 🔍 Optional: Port check & logs
+        run: |
+          kubectl describe svc entrytracker-service
+          kubectl logs -l app=entrytracker
