@@ -17,14 +17,7 @@ jobs:
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-
-      - name: 🛠️ Build and Push Docker image
-        run: |
-          IMAGE_TAG=entrytracker:$(date +%Y%m%d)-${{ github.sha }}
-          docker build -t $IMAGE_TAG .
-          docker tag $IMAGE_TAG ${{ secrets.DOCKERHUB_USERNAME }}/entrytracker:latest
-          docker push ${{ secrets.DOCKERHUB_USERNAME }}/entrytracker:latest
-
+          
       - name: 🧪 Create kind cluster
         uses: helm/kind-action@v1.7.0
 
