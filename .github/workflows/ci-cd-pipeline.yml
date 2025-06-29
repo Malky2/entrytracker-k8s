@@ -56,7 +56,7 @@ jobs:
           kubectl get pods
           kubectl get services
 
-      - name: 🔍 Optional: Port check & logs
+      - name: Optional - Port check and logs
         run: |
           kubectl describe svc entrytracker-service
           kubectl logs -l app=entrytracker
